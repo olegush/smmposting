@@ -3,11 +3,6 @@
 The script posts articles and/or photos to VK public, Telegram chat and FB group. Posting shedule
 get from Google Sheets and texts and images - from Google Drive.
 
-For approve user should:
-* tag his friend(s)
-* like the post
-* subscribe to the orginizer account
-
 
 ### How to install
 
@@ -16,12 +11,12 @@ For approve user should:
 pip install -r requirements.txt
 ```
 
-2. Enable Google Sheets API according [instructions](https://developers.google.com/sheets/api/quickstart/python) 
-spreadsheet_id variable contains the ID of shedule table (see the [sample](https://docs.google.com/spreadsheets/d/17r4QRW_m0clut772bRnUL-U1-JiazImiZMm43SkgS9Q/edit#gid=0))
+2. Enable Google Sheets API according [instructions](https://developers.google.com/sheets/api/quickstart/python) ,
+`spreadsheet_id` variable contains the ID of shedule table (see the [sample](https://docs.google.com/spreadsheets/d/17r4QRW_m0clut772bRnUL-U1-JiazImiZMm43SkgS9Q/edit#gid=0))
 
-3. Enable Google Drive API accordin [instructions](https://gsuitedevs.github.io/PyDrive/docs/build/html/quickstart.html#authentication) 
+3. Enable Google Drive API according [instructions](https://gsuitedevs.github.io/PyDrive/docs/build/html/quickstart.html#authentication) 
 
-4. Create VK public, Telegram chat and FB group for posting and put all necessary parameters to .env
+4. Create VK public, Telegram chat and FB group for posting and put all necessary parameters to .env file.
 
 ```
 LOGIN_VK=your_phone_number_in_vk
@@ -41,8 +36,8 @@ GROUP_ID_FB=fb_group_id
 
 ### Quickstart
 
-Just run **main.py**, it will be check shedule every 5 minutes. Or, if you want to add script to cron,
-edit `while True:` loop.
+Just run **main.py**, it will be check shedule every 5 minutes and post matching rows. 
+Or, if you want to add script to cron, edit `while True:` loop.
 
 
 ### Project Goals
