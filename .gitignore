@@ -56,3 +56,10 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# My files
+client_secrets.json
+credentials.json
+token.pickle
+vk_config.v2.json
+.env
