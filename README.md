@@ -1,1 +1,3 @@
-smmposting
+# SMM posting script
+
+readme
