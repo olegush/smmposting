@@ -76,7 +76,7 @@ def get_data_for_posts(article_id, img_id):
     else:
         img_title = None
 
-    return text, img_title
+    return article_title, text, img_title
 
 
 def get_googledrive_content(id, type):
@@ -180,7 +180,7 @@ if __name__ == '__main__':
                 if current_weekday == weekday and current_hour == hour and status == 'нет':
                     article_id = get_googledrive_id(article_link)
                     img_id = get_googledrive_id(img_link)
-                    text, img_title = get_data_for_posts(article_id, img_id)
+                    article_title, text, img_title = get_data_for_posts(article_id, img_id)
 
                     if text or img_title:
 
@@ -212,4 +212,6 @@ if __name__ == '__main__':
                                 group_id_fb
                             )
                         update_google_sheet(row, num, spreadsheet_id)
+                        os.remove(img_title)
+                        os.remove(article_title)
         time.sleep(delay)
