@@ -41,7 +41,7 @@ def auth_google_sheet(token_file, creds_file, scopes):
     return build('sheets', 'v4', credentials=creds)
 
 
-def get_google_sheet(service, spreadsheet_id, range_name):
+def get_google_datasheet(service, spreadsheet_id, range_name):
     sheet = service.spreadsheets()
     result = sheet.values().get(
         spreadsheetId=spreadsheet_id,
@@ -51,10 +51,10 @@ def get_google_sheet(service, spreadsheet_id, range_name):
     return result.get('values', [])
 
 
-def get_googledrive_id(cell):
+def get_googledrive_id(cell_content):
     try:
         extractor = URLExtract()
-        urls = extractor.find_urls(cell)
+        urls = extractor.find_urls(cell_content)
         query = urlparse(urls[0])[4]
         googledrive_id = parse_qs(query)['id'][0]
     except (IndexError, KeyError):
@@ -63,31 +63,33 @@ def get_googledrive_id(cell):
         return googledrive_id
 
 
-def get_data_for_posts(article_id, img_id):
+def get_data_for_post(article_id, img_id, dir):
     if article_id:
-        article_title = get_googledrive_content(article_id, type='text/plain')
-        with open(article_title) as file:
-            text = file.read()
+        article_path = get_googledrive_content(article_id, dir, type='text/plain')
+        with open(article_path) as file:
+            article_text = file.read()
     else:
-        text = ''
+        article_text = ''
 
     if img_id:
-        img_title = get_googledrive_content(img_id, type=None)
+        img_path = get_googledrive_content(img_id, dir, type=None)
     else:
-        img_title = None
+        img_path = None
 
-    return article_title, text, img_title
+    return article_path, article_text, img_path
 
 
-def get_googledrive_content(id, type):
+def get_googledrive_content(id, dir, type):
     gauth = GoogleAuth()
     drive = GoogleDrive(gauth)
-    content = drive.CreateFile({'id': id})
-    content.GetContentFile(content['title'], mimetype=type)
-    return content['title']
+    instance = drive.CreateFile({'id': id})
+    file_ext = os.path.splitext(instance['title'])[1]
+    path = os.path.join(dir, '{}{}'.format(id, file_ext))
+    instance.GetContentFile(path, mimetype=type)
+    return path
 
 
-def post_to_vk(vk, vk_session, filepath, text, group_id, album_id):
+def post_to_vk(vk, vk_session, filepath, article_text, group_id, album_id):
     if filepath:
         upload = vk_api.upload.VkUpload(vk_session)
         photo = upload.photo(filepath, album_id=album_id, group_id=group_id)
@@ -97,43 +99,39 @@ def post_to_vk(vk, vk_session, filepath, text, group_id, album_id):
     vk.wall.post(
         owner_id=-int(group_id),
         from_group=1,
-        message=text,
+        message=article_text,
         attachments=photo_name
     )
 
 
-def post_to_telegram(bot, filepath, text, chat):
+def post_to_telegram(bot, filepath, article_text, chat):
     if filepath:
         with open(filepath, 'rb') as img:
-            bot.send_photo(chat_id=chat, photo=img, caption=text)
+            bot.send_photo(chat_id=chat, photo=img, caption=article_text)
     else:
-        bot.send_message(chat_id=chat, text=text)
+        bot.send_message(chat_id=chat, text=article_text)
 
 
-def post_to_facebook(filepath, text, token, group_id):
+def post_to_facebook(filepath, article_text, token, group_id):
     if filepath:
         url = 'https://graph.facebook.com/{}/photos'.format(group_id)
         with open(filepath, 'rb') as photo:
-            payload = {'caption': text, 'access_token': token, 'source': photo}
+            payload = {'caption': article_text, 'access_token': token, 'source': photo}
             response = requests.post(url, params=payload)
     else:
         url = 'https://graph.facebook.com/{}/feed'.format(group_id)
-        payload = {'message': text, 'access_token': token}
+        payload = {'message': article_text, 'access_token': token}
         response = requests.post(url, params=payload)
 
 
 def update_google_sheet(row, num, spreadsheet_id):
-    row_new = row[:-1]
-    row_new.append('да')
-    values = [row_new]
-    body = {'values': values}
+    body = {'values': [row]}
     result = service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
         range='A{}'.format(num),
         valueInputOption='USER_ENTERED',
         body=body
     ).execute()
-    result.get('updatedCells')
 
 
 if __name__ == '__main__':
@@ -146,11 +144,14 @@ if __name__ == '__main__':
     spreadsheet_id = '17hMOmQkpdTUqUbnDmKOpCOLNuJ53DvmAmapDz2eg-bs'
     start_row = 3
     range_name = 'Лист1!A{}:H'.format(start_row)
+    dir_content = 'content'
 
     weekdays = [
         'понедельник', 'вторник', 'среда',
         'четверг', 'пятница', 'суббота', 'воскресенье'
     ]
+
+    # delay execution the script
     delay = 5*60
 
     load_dotenv()
@@ -164,26 +165,30 @@ if __name__ == '__main__':
     token_fb = os.getenv('TOKEN_FB')
 
     while True:
+        # calculating current hour and weekday
         current_datetime = datetime.now().timetuple()
         current_hour = current_datetime[3]
         current_weekday = weekdays[current_datetime[6]]
 
+        # authorization to GoogleSheets and getting the sheet
         service = auth_google_sheet(token_file, creds_file, scopes)
-        sheet_data = get_google_sheet(service, spreadsheet_id, range_name)
+        sheet_data = get_google_datasheet(service, spreadsheet_id, range_name)
 
         if not sheet_data:
             print('No data found.')
         else:
+            # scanning GoogleSheets rows
             for num, row in enumerate(sheet_data, start_row):
-                vk_flag, tel_flag, fb_flag, weekday, hour, article_link, img_link, status = row
+                vk_flag, tel_flag, fb_flag, weekday, hour, article, img, status = row
 
+                # getting content according shedule from GoogleDrive
                 if current_weekday == weekday and current_hour == hour and status == 'нет':
-                    article_id = get_googledrive_id(article_link)
-                    img_id = get_googledrive_id(img_link)
-                    article_title, text, img_title = get_data_for_posts(article_id, img_id)
+                    article_id = get_googledrive_id(article)
+                    img_id = get_googledrive_id(img)
+                    article_path, article_text, img_path = get_data_for_post(article_id, img_id, dir_content)
 
-                    if text or img_title:
-
+                    if article_text or img_path:
+                        # posting to socials
                         if vk_flag == 'да':
                             vk_session = vk_api.VkApi(login_vk, password_vk)
                             vk_session.auth()
@@ -191,8 +196,8 @@ if __name__ == '__main__':
                             post_to_vk(
                                 vk,
                                 vk_session,
-                                img_title,
-                                text,
+                                img_path,
+                                article_text,
                                 group_id_vk,
                                 album_id_vk
                             )
@@ -200,18 +205,27 @@ if __name__ == '__main__':
                             bot = telegram.Bot(token=token_tel)
                             post_to_telegram(
                                 bot,
-                                img_title,
-                                text,
+                                img_path,
+                                article_text,
                                 chat_id_tel
                             )
                         if fb_flag == 'да':
                             post_to_facebook(
-                                img_title,
-                                text,
+                                img_path,
+                                article_text,
                                 token_fb,
                                 group_id_fb
                             )
-                        update_google_sheet(row, num, spreadsheet_id)
-                        os.remove(img_title)
-                        os.remove(article_title)
+
+                        # updating the row
+                        row_new = row[:-1]
+                        row_new.append('да')
+                        update_google_sheet(row_new, num, spreadsheet_id)
+
+                        # deleting content files
+                        if img_path and os.path.exists(img_path):
+                            os.remove(img_path)
+                        if article_path and os.path.exists(article_path):
+                            os.remove(article_path)
+
         time.sleep(delay)
