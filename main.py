@@ -41,8 +41,8 @@ def auth_google_sheet(token_file, creds_file, scopes):
     return build('sheets', 'v4', credentials=creds)
 
 
-def get_google_datasheet(service, spreadsheet_id, range_name):
-    sheet = service.spreadsheets()
+def get_google_datasheet(auth_service, spreadsheet_id, range_name):
+    sheet = auth_service.spreadsheets()
     result = sheet.values().get(
         spreadsheetId=spreadsheet_id,
         range=range_name,
@@ -63,28 +63,28 @@ def get_googledrive_id(cell_content):
         return googledrive_id
 
 
-def get_data_for_post(article_id, img_id, dir):
+def get_data_for_post(article_id, img_id, file_dir):
     if article_id:
-        article_path = get_googledrive_content(article_id, dir, type='text/plain')
+        article_path = get_googledrive_content(article_id, file_dir, type='text/plain')
         with open(article_path) as file:
             article_text = file.read()
     else:
         article_text = ''
 
     if img_id:
-        img_path = get_googledrive_content(img_id, dir, type=None)
+        img_path = get_googledrive_content(img_id, file_dir, type=None)
     else:
         img_path = None
 
     return article_path, article_text, img_path
 
 
-def get_googledrive_content(id, dir, type):
+def get_googledrive_content(id, file_dir, type):
     gauth = GoogleAuth()
     drive = GoogleDrive(gauth)
     instance = drive.CreateFile({'id': id})
     file_ext = os.path.splitext(instance['title'])[1]
-    file_path = os.path.join(dir, '{}{}'.format(id, file_ext))
+    file_path = os.path.join(file_dir, '{}{}'.format(id, file_ext))
     instance.GetContentFile(path, mimetype=type)
     return file_path
 
@@ -104,12 +104,12 @@ def post_to_vk(vk, vk_session, filepath, article_text, group_id, album_id):
     )
 
 
-def post_to_telegram(bot, filepath, article_text, chat):
+def post_to_telegram(tel_bot, filepath, article_text, chat):
     if filepath:
         with open(filepath, 'rb') as img:
-            bot.send_photo(chat_id=chat, photo=img, caption=article_text)
+            tel_bot.send_photo(chat_id=chat, photo=img, caption=article_text)
     else:
-        bot.send_message(chat_id=chat, text=article_text)
+        tel_bot.send_message(chat_id=chat, text=article_text)
 
 
 def post_to_facebook(filepath, article_text, token, group_id):
@@ -124,9 +124,9 @@ def post_to_facebook(filepath, article_text, token, group_id):
         response = requests.post(url, params=payload)
 
 
-def update_google_sheet(row, num, spreadsheet_id):
+def update_google_sheet(auth_service, row, num, spreadsheet_id):
     body = {'values': [row]}
-    result = service.spreadsheets().values().update(
+    result = auth_service.spreadsheets().values().update(
         spreadsheetId=spreadsheet_id,
         range='A{}'.format(num),
         valueInputOption='USER_ENTERED',
@@ -171,8 +171,8 @@ if __name__ == '__main__':
         current_weekday = weekdays[current_datetime[6]]
 
         # authorization to GoogleSheets and getting the sheet
-        service = auth_google_sheet(token_file, creds_file, scopes)
-        sheet_data = get_google_datasheet(service, spreadsheet_id, range_name)
+        auth_service = auth_google_sheet(token_file, creds_file, scopes)
+        sheet_data = get_google_datasheet(auth_service, spreadsheet_id, range_name)
 
         if not sheet_data:
             print('No data found.')
@@ -202,9 +202,9 @@ if __name__ == '__main__':
                                 album_id_vk
                             )
                         if tel_flag == 'да':
-                            bot = telegram.Bot(token=token_tel)
+                            tel_bot = telegram.Bot(token=token_tel)
                             post_to_telegram(
-                                bot,
+                                tel_bot,
                                 img_path,
                                 article_text,
                                 chat_id_tel
@@ -220,7 +220,7 @@ if __name__ == '__main__':
                         # updating the row
                         row_new = row[:-1]
                         row_new.append('да')
-                        update_google_sheet(row_new, num, spreadsheet_id)
+                        update_google_sheet(auth_service, row_new, num, spreadsheet_id)
 
                         # deleting content files
                         if img_path and os.path.exists(img_path):
