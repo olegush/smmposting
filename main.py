@@ -84,9 +84,9 @@ def get_googledrive_content(id, dir, type):
     drive = GoogleDrive(gauth)
     instance = drive.CreateFile({'id': id})
     file_ext = os.path.splitext(instance['title'])[1]
-    path = os.path.join(dir, '{}{}'.format(id, file_ext))
+    file_path = os.path.join(dir, '{}{}'.format(id, file_ext))
     instance.GetContentFile(path, mimetype=type)
-    return path
+    return file_path
 
 
 def post_to_vk(vk, vk_session, filepath, article_text, group_id, album_id):
